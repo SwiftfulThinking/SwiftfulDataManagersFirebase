@@ -47,33 +47,52 @@ public class FirebaseRemoteCollectionService<T: DataModelProtocol>: RemoteCollec
         try await documentCollection.updateDocument(id: id, dict: data)
     }
 
-    public func streamCollection() -> AsyncThrowingStream<[T], Error> {
-        var continuation: AsyncThrowingStream<[T], Error>.Continuation?
+    public func streamCollectionUpdates() -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    ) {
+        var updatesCont: AsyncThrowingStream<T, Error>.Continuation?
+        var deletionsCont: AsyncThrowingStream<String, Error>.Continuation?
 
-        let stream = AsyncThrowingStream<[T], Error> { cont in
-            continuation = cont
+        let updates = AsyncThrowingStream<T, Error> { continuation in
+            updatesCont = continuation
 
-            cont.onTermination = { @Sendable _ in
+            continuation.onTermination = { @Sendable _ in
                 Task {
                     await self.listenerTask?.cancel()
                 }
             }
         }
 
-        // Start the Firestore listener
-        listenerTask = Task {
-            do {
-                for try await _ in documentCollection.streamAllDocumentChanges() as AsyncThrowingStream<SwiftfulFirestore.DocumentChange<T>, Error> {
-                    // Fetch entire collection on each change
-                    let collection = try await documentCollection.getAllDocuments() as [T]
-                    continuation?.yield(collection)
+        let deletions = AsyncThrowingStream<String, Error> { continuation in
+            deletionsCont = continuation
+
+            continuation.onTermination = { @Sendable _ in
+                Task {
+                    await self.listenerTask?.cancel()
                 }
-            } catch {
-                continuation?.finish(throwing: error)
             }
         }
 
-        return stream
+        // Start the shared Firestore listener
+        listenerTask = Task {
+            do {
+                let collection = documentCollection
+                for try await change in collection.streamAllDocumentChanges() as AsyncThrowingStream<SwiftfulFirestore.DocumentChange<T>, Error> {
+                    switch change.type {
+                    case .added, .modified:
+                        updatesCont?.yield(change.document)
+                    case .removed:
+                        deletionsCont?.yield(change.document.id)
+                    }
+                }
+            } catch {
+                updatesCont?.finish(throwing: error)
+                deletionsCont?.finish(throwing: error)
+            }
+        }
+
+        return (updates, deletions)
     }
 
     public func deleteDocument(id: String) async throws {
