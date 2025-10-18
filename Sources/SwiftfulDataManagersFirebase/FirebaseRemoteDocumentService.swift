@@ -9,9 +9,10 @@ import Foundation
 import FirebaseFirestore
 import SwiftfulFirestore
 import SwiftfulDataManagers
+import IdentifiableByString
 
 @MainActor
-public struct FirebaseRemoteDocumentService<T: DataModelProtocol>: RemoteDocumentService {
+public struct FirebaseRemoteDocumentService<T: DMProtocol & Codable & StringIdentifiable>: RemoteDocumentService {
 
     private let collectionPath: String
 
@@ -38,8 +39,13 @@ public struct FirebaseRemoteDocumentService<T: DataModelProtocol>: RemoteDocumen
         try documentCollection.document(model.id).setData(from: model, merge: true)
     }
 
-    public func updateDocument(id: String, data: [String: any Sendable]) async throws {
-        try await documentCollection.updateDocument(id: id, dict: data)
+    public func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws {
+        // Convert DMCodableSendable dictionary to plain dictionary for Firestore
+        var firestoreData: [String: Any] = [:]
+        for (key, value) in data {
+            firestoreData[key] = value
+        }
+        try await documentCollection.document(id).updateData(firestoreData)
     }
 
     public func streamDocument(id: String) -> AsyncThrowingStream<T?, Error> {

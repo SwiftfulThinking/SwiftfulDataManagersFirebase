@@ -1,5 +1,5 @@
 {
-  "originHash" : "4b262823c672e0b603bbdb17fe0031892e222312af3088697cf30a3202a9ea45",
+  "originHash" : "080aa396218ee385d6d7c5c6323f186c49455523b372b5a9957116bd14dbf52b",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -142,7 +142,7 @@
       "location" : "https://github.com/SwiftfulThinking/SwiftfulDataManagers.git",
       "state" : {
         "branch" : "main",
-        "revision" : "ad8131201abcba981f7cba2a07ecb6439864a6f0"
+        "revision" : "2c5a435cd7b596d9f0cd18ee833249303815eca9"
       }
     },
     {

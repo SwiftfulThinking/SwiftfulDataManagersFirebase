@@ -9,9 +9,10 @@ import Foundation
 import FirebaseFirestore
 import SwiftfulFirestore
 import SwiftfulDataManagers
+import IdentifiableByString
 
 @MainActor
-public class FirebaseRemoteCollectionService<T: DataModelProtocol>: RemoteCollectionService {
+public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIdentifiable>: RemoteCollectionService {
 
     private let collectionPath: String
     private var listenerTask: Task<Void, Never>?
@@ -43,8 +44,13 @@ public class FirebaseRemoteCollectionService<T: DataModelProtocol>: RemoteCollec
         try documentCollection.document(model.id).setData(from: model, merge: true)
     }
 
-    public func updateDocument(id: String, data: [String: any Sendable]) async throws {
-        try await documentCollection.updateDocument(id: id, dict: data)
+    public func updateDocument(id: String, data: [String: any DMCodableSendable]) async throws {
+        // Convert DMCodableSendable dictionary to plain dictionary for Firestore
+        var firestoreData: [String: Any] = [:]
+        for (key, value) in data {
+            firestoreData[key] = value
+        }
+        try await documentCollection.document(id).updateData(firestoreData)
     }
 
     public func streamCollectionUpdates() -> (
@@ -99,14 +105,41 @@ public class FirebaseRemoteCollectionService<T: DataModelProtocol>: RemoteCollec
         try await documentCollection.document(id).delete()
     }
 
-    public func getDocuments(where filters: [String: any Sendable]) async throws -> [T] {
-        var query: Query = documentCollection
+    public func getDocuments(query: QueryBuilder) async throws -> [T] {
+        var firestoreQuery: Query = documentCollection
 
-        // Apply all filters as equality queries
-        for (field, value) in filters {
-            query = query.whereField(field, isEqualTo: value)
+        // Apply all filters from QueryBuilder
+        for filter in query.getFilters() {
+            switch filter.operator {
+            case .isEqualTo:
+                firestoreQuery = firestoreQuery.whereField(filter.field, isEqualTo: filter.value)
+            case .isNotEqualTo:
+                firestoreQuery = firestoreQuery.whereField(filter.field, isNotEqualTo: filter.value)
+            case .isGreaterThan:
+                firestoreQuery = firestoreQuery.whereField(filter.field, isGreaterThan: filter.value)
+            case .isLessThan:
+                firestoreQuery = firestoreQuery.whereField(filter.field, isLessThan: filter.value)
+            case .isGreaterThanOrEqualTo:
+                firestoreQuery = firestoreQuery.whereField(filter.field, isGreaterThanOrEqualTo: filter.value)
+            case .isLessThanOrEqualTo:
+                firestoreQuery = firestoreQuery.whereField(filter.field, isLessThanOrEqualTo: filter.value)
+            case .arrayContains:
+                firestoreQuery = firestoreQuery.whereField(filter.field, arrayContains: filter.value)
+            case .in:
+                if let array = filter.value as? [Any] {
+                    firestoreQuery = firestoreQuery.whereField(filter.field, in: array)
+                }
+            case .notIn:
+                if let array = filter.value as? [Any] {
+                    firestoreQuery = firestoreQuery.whereField(filter.field, notIn: array)
+                }
+            case .arrayContainsAny:
+                if let array = filter.value as? [Any] {
+                    firestoreQuery = firestoreQuery.whereField(filter.field, arrayContainsAny: array)
+                }
+            }
         }
 
-        return try await query.getAllDocuments()
+        return try await firestoreQuery.getAllDocuments()
     }
 }
