@@ -98,4 +98,15 @@ public class FirebaseRemoteCollectionService<T: DataModelProtocol>: RemoteCollec
     public func deleteDocument(id: String) async throws {
         try await documentCollection.document(id).delete()
     }
+
+    public func getDocuments(where filters: [String: any Sendable]) async throws -> [T] {
+        var query: Query = documentCollection
+
+        // Apply all filters as equality queries
+        for (field, value) in filters {
+            query = query.whereField(field, isEqualTo: value)
+        }
+
+        return try await query.getAllDocuments()
+    }
 }
