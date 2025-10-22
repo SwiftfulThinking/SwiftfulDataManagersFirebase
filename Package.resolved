@@ -1,5 +1,5 @@
 {
-  "originHash" : "080aa396218ee385d6d7c5c6323f186c49455523b372b5a9957116bd14dbf52b",
+  "originHash" : "f9df5e9d3e86e24059cc438d8d987259310e88ed17a6801109c17565aa0141f1",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -141,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftfulThinking/SwiftfulDataManagers.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "2c5a435cd7b596d9f0cd18ee833249303815eca9"
+        "revision" : "e74ea4fdff55d8c795d6ed3c064d87dbc4939ac9",
+        "version" : "1.0.1"
       }
     },
     {
