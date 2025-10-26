@@ -7,7 +7,7 @@ See documentation in the parent repo: https://github.com/SwiftfulThinking/Swiftf
 ## Example configuration:
 
 ```swift
-// Document Manager
+// Document Manager (Sync) - Static path
 #if DEBUG
 let documentManager = DocumentManagerSync(
     services: MockDMDocumentServices<UserModel>(),
@@ -20,7 +20,24 @@ let documentManager = DocumentManagerSync(
 )
 #endif
 
-// Collection Manager
+// Document Manager (Sync) - Dynamic path with closure
+#if DEBUG
+let favoritesManager = DocumentManagerSync(
+    services: MockDMDocumentServices<FavoriteModel>(),
+    configuration: .mock(managerKey: "favorites")
+)
+#else
+let favoritesManager = DocumentManagerSync(
+    services: FirebaseDMDocumentServices<FavoriteModel>(
+        collectionPath: {
+            AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
+        }
+    ),
+    configuration: DataManagerSyncConfiguration(managerKey: "favorites")
+)
+#endif
+
+// Collection Manager (Sync) - Static path
 #if DEBUG
 let collectionManager = CollectionManagerSync(
     services: MockDMCollectionServices<ProductModel>(),
@@ -28,12 +45,15 @@ let collectionManager = CollectionManagerSync(
 )
 #else
 let collectionManager = CollectionManagerSync(
-    services: FirebaseDMCollectionServices<ProductModel>(collectionPath: "products"),
+    services: FirebaseDMCollectionServices<ProductModel>(
+        collectionPath: "products",
+        managerKey: "products"
+    ),
     configuration: DataManagerSyncConfiguration(managerKey: "products")
 )
 #endif
 
-// Async Document Manager
+// Async Document Manager - Static path
 #if DEBUG
 let asyncDocManager = DocumentManagerAsync(
     service: MockRemoteDocumentService<UserModel>(),
@@ -46,7 +66,7 @@ let asyncDocManager = DocumentManagerAsync(
 )
 #endif
 
-// Async Collection Manager
+// Async Collection Manager - Static path
 #if DEBUG
 let asyncCollectionManager = CollectionManagerAsync(
     service: MockRemoteCollectionService<ProductModel>(),
@@ -168,37 +188,53 @@ When using closures that return `String?`, operations will throw `FirebaseServic
 
 </details>
 
-## Custom Services Implementation
+## Provided Service Wrappers
 
 <details>
 <summary> Details (Click to expand) </summary>
 <br>
 
-Create combined services for sync managers:
+The package provides pre-built service wrappers that combine Firebase remote storage with local persistence:
+
+### FirebaseDMDocumentServices
+Combines `FirebaseRemoteDocumentService` with `FileManagerDocumentPersistence` for sync document managers.
 
 ```swift
-// Document Services
-struct FirebaseDMDocumentServices<T: DMProtocol>: DMDocumentServices {
-    let remote: any RemoteDocumentService<T>
-    let local: any LocalDocumentPersistence<T>
+// Static path
+let services = FirebaseDMDocumentServices<UserModel>(
+    collectionPath: "users"
+)
 
-    init(collectionPath: String) {
-        self.remote = FirebaseRemoteDocumentService<T>(collectionPath: collectionPath)
-        self.local = FileManagerDocumentPersistence<T>()
+// Dynamic path with closure
+let services = FirebaseDMDocumentServices<FavoriteModel>(
+    collectionPath: {
+        AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
     }
-}
-
-// Collection Services
-struct FirebaseDMCollectionServices<T: DMProtocol>: DMCollectionServices {
-    let remote: any RemoteCollectionService<T>
-    let local: any LocalCollectionPersistence<T>
-
-    init(collectionPath: String, managerKey: String) {
-        self.remote = FirebaseRemoteCollectionService<T>(collectionPath: collectionPath)
-        self.local = SwiftDataCollectionPersistence<T>(managerKey: managerKey)
-    }
-}
+)
 ```
+
+### FirebaseDMCollectionServices
+Combines `FirebaseRemoteCollectionService` with `SwiftDataCollectionPersistence` for sync collection managers.
+
+```swift
+// Static path
+let services = FirebaseDMCollectionServices<ProductModel>(
+    collectionPath: "products",
+    managerKey: "products"
+)
+
+// Dynamic path with closure
+let services = FirebaseDMCollectionServices<FavoriteModel>(
+    collectionPath: {
+        AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
+    },
+    managerKey: "favorites"
+)
+```
+
+**Note:** For async managers (`DocumentManagerAsync`, `CollectionManagerAsync`), use the remote services directly:
+- `FirebaseRemoteDocumentService`
+- `FirebaseRemoteCollectionService`
 
 </details>
 
