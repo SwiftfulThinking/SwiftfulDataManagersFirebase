@@ -97,14 +97,19 @@ let results = try await asyncCollectionManager.getDocuments(query: query)
 
 Firebase services support dynamic collection paths for nested documents:
 
+### Static Path (String)
 ```swift
 // Static collection path
 let service = FirebaseRemoteDocumentService<UserModel>(
     collectionPath: "users"
 )
 // Creates: users/{userId}
+```
 
-// Dynamic nested path
+### Dynamic Path with String Interpolation
+```swift
+// Dynamic nested path - requires userId at initialization
+let userId = "user123"
 let service = FirebaseRemoteDocumentService<FavoriteModel>(
     collectionPath: "users/\(userId)/favorites"
 )
@@ -117,10 +122,49 @@ let service = FirebaseRemoteCollectionService<CommentModel>(
 // Creates: posts/{postId}/comments/{commentId}/replies/{replyId}
 ```
 
-This is useful for:
-- User-specific subcollections
-- Hierarchical data structures
+### Dynamic Path with Closure (returns String?)
+```swift
+// Dynamic path closure - resolves at runtime
+let favoritesManager = DocumentManagerAsync(
+    service: FirebaseRemoteDocumentService<FavoriteModel>(
+        collectionPath: {
+            AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
+        }
+    ),
+    configuration: DataManagerAsyncConfiguration(managerKey: "favorites")
+)
+// Returns nil when user is not logged in
+// Throws FirebaseServiceError.collectionPathNotAvailable when operations are attempted before login
+
+// Using with optional chaining
+@Observable
+class AuthService {
+    var currentUserId: String?
+}
+
+// Manager can be created before userId is available
+let manager = DocumentManagerAsync(
+    service: FirebaseRemoteDocumentService<FavoriteModel>(
+        collectionPath: {
+            guard let userId = AuthService.shared.currentUserId else {
+                return nil
+            }
+            return "users/\(userId)/favorites"
+        }
+    ),
+    configuration: DataManagerAsyncConfiguration(managerKey: "favorites")
+)
+// Operations will throw error until user logs in and userId is set
+```
+
+**Use cases:**
+- User-specific subcollections (e.g., favorites, settings)
+- Hierarchical data structures (e.g., comments on posts)
 - Scoped collections per entity
+- Manager initialization before authentication
+
+**Error handling:**
+When using closures that return `String?`, operations will throw `FirebaseServiceError.collectionPathNotAvailable` if the path is nil.
 
 </details>
 

@@ -14,19 +14,33 @@ import IdentifiableByString
 @MainActor
 public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIdentifiable>: RemoteCollectionService {
 
-    private let collectionPath: String
+    private let collectionPath: () -> String?
     private var listenerTask: Task<Void, Never>?
 
     private var documentCollection: CollectionReference {
-        Firestore.firestore().collection(collectionPath)
+        get throws {
+            guard let path = collectionPath() else {
+                throw FirebaseServiceError.collectionPathNotAvailable
+            }
+            return Firestore.firestore().collection(path)
+        }
     }
 
-    /// Initialize the Firebase Remote Collection Service
+    /// Initialize the Firebase Remote Collection Service with a static path
     /// - Parameter collectionPath: The Firestore collection path where documents are stored.
     ///   Can be a simple collection name (e.g., "users") or a nested path (e.g., "users/data/favorites").
     ///   Example: "users" → "users/{documentId}"
     ///   Example: "users/user123/favorites" → "users/user123/favorites/{documentId}"
     public init(collectionPath: String) {
+        self.collectionPath = { collectionPath }
+    }
+
+    /// Initialize the Firebase Remote Collection Service with a dynamic path closure
+    /// - Parameter collectionPath: A closure that returns the Firestore collection path, or nil if not available.
+    ///   Useful for paths that depend on runtime values like user IDs.
+    ///   Returns nil when the path is not yet available (e.g., before login).
+    ///   Example: `{ AuthService.shared.currentUserId.map { "users/\($0)/favorites" } }`
+    public init(collectionPath: @escaping () -> String?) {
         self.collectionPath = collectionPath
     }
 
@@ -83,7 +97,7 @@ public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIde
         // Start the shared Firestore listener
         listenerTask = Task {
             do {
-                let collection = documentCollection
+                let collection = try documentCollection
                 for try await change in collection.streamAllDocumentChanges() as AsyncThrowingStream<SwiftfulFirestore.DocumentChange<T>, Error> {
                     switch change.type {
                     case .added, .modified:
@@ -106,7 +120,7 @@ public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIde
     }
 
     public func getDocuments(query: QueryBuilder) async throws -> [T] {
-        var firestoreQuery: Query = documentCollection
+        var firestoreQuery: Query = try documentCollection
 
         // Apply all filters from QueryBuilder
         for filter in query.getFilters() {

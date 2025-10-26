@@ -11,21 +11,39 @@ import SwiftfulFirestore
 import SwiftfulDataManagers
 import IdentifiableByString
 
+public enum FirebaseServiceError: Error {
+    case collectionPathNotAvailable
+}
+
 @MainActor
 public struct FirebaseRemoteDocumentService<T: DMProtocol & Codable & StringIdentifiable>: RemoteDocumentService {
 
-    private let collectionPath: String
+    private let collectionPath: () -> String?
 
     private var documentCollection: CollectionReference {
-        Firestore.firestore().collection(collectionPath)
+        get throws {
+            guard let path = collectionPath() else {
+                throw FirebaseServiceError.collectionPathNotAvailable
+            }
+            return Firestore.firestore().collection(path)
+        }
     }
 
-    /// Initialize the Firebase Remote Document Service
+    /// Initialize the Firebase Remote Document Service with a static path
     /// - Parameter collectionPath: The Firestore collection path where documents are stored.
     ///   Can be a simple collection name (e.g., "users") or a nested path (e.g., "users/data/favorites").
     ///   Example: "users" → "users/{documentId}"
     ///   Example: "users/user123/favorites" → "users/user123/favorites/{documentId}"
     public init(collectionPath: String) {
+        self.collectionPath = { collectionPath }
+    }
+
+    /// Initialize the Firebase Remote Document Service with a dynamic path closure
+    /// - Parameter collectionPath: A closure that returns the Firestore collection path, or nil if not available.
+    ///   Useful for paths that depend on runtime values like user IDs.
+    ///   Returns nil when the path is not yet available (e.g., before login).
+    ///   Example: `{ AuthService.shared.currentUserId.map { "users/\($0)/favorites" } }`
+    public init(collectionPath: @escaping () -> String?) {
         self.collectionPath = collectionPath
     }
 
@@ -49,7 +67,13 @@ public struct FirebaseRemoteDocumentService<T: DMProtocol & Codable & StringIden
     }
 
     public func streamDocument(id: String) -> AsyncThrowingStream<T?, Error> {
-        documentCollection.streamDocument(id: id)
+        do {
+            return try documentCollection.streamDocument(id: id)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
     }
 
     public func deleteDocument(id: String) async throws {
