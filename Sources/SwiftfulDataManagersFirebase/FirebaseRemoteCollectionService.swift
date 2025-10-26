@@ -26,20 +26,12 @@ public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIde
         }
     }
 
-    /// Initialize the Firebase Remote Collection Service with a static path
-    /// - Parameter collectionPath: The Firestore collection path where documents are stored.
-    ///   Can be a simple collection name (e.g., "users") or a nested path (e.g., "users/data/favorites").
-    ///   Example: "users" → "users/{documentId}"
-    ///   Example: "users/user123/favorites" → "users/user123/favorites/{documentId}"
-    public init(collectionPath: String) {
-        self.collectionPath = { collectionPath }
-    }
-
-    /// Initialize the Firebase Remote Collection Service with a dynamic path closure
+    /// Initialize the Firebase Remote Collection Service
     /// - Parameter collectionPath: A closure that returns the Firestore collection path, or nil if not available.
-    ///   Useful for paths that depend on runtime values like user IDs.
+    ///   For static paths: `{ "products" }`
+    ///   For dynamic paths: `{ AuthService.shared.currentUserId.map { "users/\($0)/favorites" } }`
     ///   Returns nil when the path is not yet available (e.g., before login).
-    ///   Example: `{ AuthService.shared.currentUserId.map { "users/\($0)/favorites" } }`
+    ///   Operations will throw `FirebaseServiceError.collectionPathNotAvailable` if the path is nil.
     public init(collectionPath: @escaping () -> String?) {
         self.collectionPath = collectionPath
     }

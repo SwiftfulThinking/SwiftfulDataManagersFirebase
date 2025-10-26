@@ -7,77 +7,41 @@ See documentation in the parent repo: https://github.com/SwiftfulThinking/Swiftf
 ## Example configuration:
 
 ```swift
-// Document Manager (Sync) - Static path
-#if DEBUG
-let documentManager = DocumentManagerSync(
-    services: MockDMDocumentServices<UserModel>(),
-    configuration: .mock(managerKey: "user")
+// Async Document Manager - Static path
+let asyncDocManager = DocumentManagerAsync(
+    service: FirebaseRemoteDocumentService<UserModel>(
+        collectionPath: { "users" }
+    ),
+    configuration: DataManagerAsyncConfiguration(managerKey: "user")
 )
-#else
-let documentManager = DocumentManagerSync(
-    services: FirebaseDMDocumentServices<UserModel>(collectionPath: "users"),
-    configuration: DataManagerSyncConfiguration(managerKey: "user")
-)
-#endif
 
-// Document Manager (Sync) - Dynamic path with closure
-#if DEBUG
-let favoritesManager = DocumentManagerSync(
-    services: MockDMDocumentServices<FavoriteModel>(),
-    configuration: .mock(managerKey: "favorites")
-)
-#else
-let favoritesManager = DocumentManagerSync(
-    services: FirebaseDMDocumentServices<FavoriteModel>(
+// Async Document Manager - Dynamic path
+let favoritesManager = DocumentManagerAsync(
+    service: FirebaseRemoteDocumentService<FavoriteModel>(
         collectionPath: {
             AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
         }
     ),
-    configuration: DataManagerSyncConfiguration(managerKey: "favorites")
+    configuration: DataManagerAsyncConfiguration(managerKey: "favorites")
 )
-#endif
-
-// Collection Manager (Sync) - Static path
-#if DEBUG
-let collectionManager = CollectionManagerSync(
-    services: MockDMCollectionServices<ProductModel>(),
-    configuration: .mock(managerKey: "products")
-)
-#else
-let collectionManager = CollectionManagerSync(
-    services: FirebaseDMCollectionServices<ProductModel>(
-        collectionPath: "products",
-        managerKey: "products"
-    ),
-    configuration: DataManagerSyncConfiguration(managerKey: "products")
-)
-#endif
-
-// Async Document Manager - Static path
-#if DEBUG
-let asyncDocManager = DocumentManagerAsync(
-    service: MockRemoteDocumentService<UserModel>(),
-    configuration: .mock(managerKey: "user")
-)
-#else
-let asyncDocManager = DocumentManagerAsync(
-    service: FirebaseRemoteDocumentService<UserModel>(collectionPath: "users"),
-    configuration: DataManagerAsyncConfiguration(managerKey: "user")
-)
-#endif
 
 // Async Collection Manager - Static path
-#if DEBUG
 let asyncCollectionManager = CollectionManagerAsync(
-    service: MockRemoteCollectionService<ProductModel>(),
-    configuration: .mock(managerKey: "products")
-)
-#else
-let asyncCollectionManager = CollectionManagerAsync(
-    service: FirebaseRemoteCollectionService<ProductModel>(collectionPath: "products"),
+    service: FirebaseRemoteCollectionService<ProductModel>(
+        collectionPath: { "products" }
+    ),
     configuration: DataManagerAsyncConfiguration(managerKey: "products")
 )
-#endif
+
+// Async Collection Manager - Dynamic path
+let userPostsManager = CollectionManagerAsync(
+    service: FirebaseRemoteCollectionService<PostModel>(
+        collectionPath: {
+            AuthService.shared.currentUserId.map { "users/\($0)/posts" }
+        }
+    ),
+    configuration: DataManagerAsyncConfiguration(managerKey: "posts")
+)
 ```
 
 ## Example actions:
@@ -115,36 +79,31 @@ let results = try await asyncCollectionManager.getDocuments(query: query)
 <summary> Details (Click to expand) </summary>
 <br>
 
-Firebase services support dynamic collection paths for nested documents:
+Firebase services use closures for collection paths, supporting both static and dynamic paths:
 
-### Static Path (String)
+### Static Paths
 ```swift
-// Static collection path
+// Simple collection
 let service = FirebaseRemoteDocumentService<UserModel>(
-    collectionPath: "users"
+    collectionPath: { "users" }
 )
-// Creates: users/{userId}
-```
+// Creates: users/{documentId}
 
-### Dynamic Path with String Interpolation
-```swift
-// Dynamic nested path - requires userId at initialization
-let userId = "user123"
-let service = FirebaseRemoteDocumentService<FavoriteModel>(
-    collectionPath: "users/\(userId)/favorites"
-)
-// Creates: users/{userId}/favorites/{favoriteId}
-
-// Multiple nesting levels
+// Nested collection with hardcoded IDs
 let service = FirebaseRemoteCollectionService<CommentModel>(
-    collectionPath: "posts/\(postId)/comments/\(commentId)/replies"
+    collectionPath: { "posts/post123/comments" }
 )
-// Creates: posts/{postId}/comments/{commentId}/replies/{replyId}
+// Creates: posts/post123/comments/{documentId}
 ```
 
-### Dynamic Path with Closure (returns String?)
+### Dynamic Paths
 ```swift
-// Dynamic path closure - resolves at runtime
+// Path depends on runtime value (e.g., current user)
+@Observable
+class AuthService {
+    var currentUserId: String?
+}
+
 let favoritesManager = DocumentManagerAsync(
     service: FirebaseRemoteDocumentService<FavoriteModel>(
         collectionPath: {
@@ -153,17 +112,9 @@ let favoritesManager = DocumentManagerAsync(
     ),
     configuration: DataManagerAsyncConfiguration(managerKey: "favorites")
 )
-// Returns nil when user is not logged in
-// Throws FirebaseServiceError.collectionPathNotAvailable when operations are attempted before login
 
-// Using with optional chaining
-@Observable
-class AuthService {
-    var currentUserId: String?
-}
-
-// Manager can be created before userId is available
-let manager = DocumentManagerAsync(
+// Or using guard statement
+let favoritesManager = DocumentManagerAsync(
     service: FirebaseRemoteDocumentService<FavoriteModel>(
         collectionPath: {
             guard let userId = AuthService.shared.currentUserId else {
@@ -174,67 +125,87 @@ let manager = DocumentManagerAsync(
     ),
     configuration: DataManagerAsyncConfiguration(managerKey: "favorites")
 )
-// Operations will throw error until user logs in and userId is set
+
+// Multiple nesting levels
+let repliesManager = CollectionManagerAsync(
+    service: FirebaseRemoteCollectionService<ReplyModel>(
+        collectionPath: {
+            guard let postId = currentPostId,
+                  let commentId = currentCommentId else {
+                return nil
+            }
+            return "posts/\(postId)/comments/\(commentId)/replies"
+        }
+    ),
+    configuration: DataManagerAsyncConfiguration(managerKey: "replies")
+)
 ```
 
 **Use cases:**
-- User-specific subcollections (e.g., favorites, settings)
-- Hierarchical data structures (e.g., comments on posts)
+- User-specific subcollections (favorites, settings, posts)
+- Hierarchical data structures (comments, replies)
 - Scoped collections per entity
 - Manager initialization before authentication
 
 **Error handling:**
-When using closures that return `String?`, operations will throw `FirebaseServiceError.collectionPathNotAvailable` if the path is nil.
+When the closure returns `nil`, operations will throw `FirebaseServiceError.collectionPathNotAvailable`. This allows managers to be created before the path is available (e.g., before login), and operations will automatically fail with a clear error until the path becomes available.
 
 </details>
 
-## Provided Service Wrappers
+## Custom Service Wrappers (Optional)
 
 <details>
 <summary> Details (Click to expand) </summary>
 <br>
 
-The package provides pre-built service wrappers that combine Firebase remote storage with local persistence:
+For sync managers, you may want to create custom service wrappers that combine Firebase remote services with local persistence. Here's how:
 
-### FirebaseDMDocumentServices
-Combines `FirebaseRemoteDocumentService` with `FileManagerDocumentPersistence` for sync document managers.
-
+### Document Services Wrapper
 ```swift
-// Static path
-let services = FirebaseDMDocumentServices<UserModel>(
-    collectionPath: "users"
-)
+struct FirebaseDMDocumentServices<T: DMProtocol & Codable & StringIdentifiable>: DMDocumentServices {
+    let remote: any RemoteDocumentService<T>
+    let local: any LocalDocumentPersistence<T>
 
-// Dynamic path with closure
-let services = FirebaseDMDocumentServices<FavoriteModel>(
-    collectionPath: {
-        AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
+    init(collectionPath: @escaping () -> String?) {
+        self.remote = FirebaseRemoteDocumentService<T>(collectionPath: collectionPath)
+        self.local = FileManagerDocumentPersistence<T>()
     }
+}
+
+// Usage
+let manager = DocumentManagerSync(
+    services: FirebaseDMDocumentServices<FavoriteModel>(
+        collectionPath: {
+            AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
+        }
+    ),
+    configuration: DataManagerSyncConfiguration(managerKey: "favorites")
 )
 ```
 
-### FirebaseDMCollectionServices
-Combines `FirebaseRemoteCollectionService` with `SwiftDataCollectionPersistence` for sync collection managers.
-
+### Collection Services Wrapper
 ```swift
-// Static path
-let services = FirebaseDMCollectionServices<ProductModel>(
-    collectionPath: "products",
-    managerKey: "products"
-)
+struct FirebaseDMCollectionServices<T: DMProtocol & Codable & StringIdentifiable>: DMCollectionServices {
+    let remote: any RemoteCollectionService<T>
+    let local: any LocalCollectionPersistence<T>
 
-// Dynamic path with closure
-let services = FirebaseDMCollectionServices<FavoriteModel>(
-    collectionPath: {
-        AuthService.shared.currentUserId.map { "users/\($0)/favorites" }
-    },
-    managerKey: "favorites"
+    init(collectionPath: @escaping () -> String?, managerKey: String) {
+        self.remote = FirebaseRemoteCollectionService<T>(collectionPath: collectionPath)
+        self.local = SwiftDataCollectionPersistence<T>(managerKey: managerKey)
+    }
+}
+
+// Usage
+let manager = CollectionManagerSync(
+    services: FirebaseDMCollectionServices<ProductModel>(
+        collectionPath: { "products" },
+        managerKey: "products"
+    ),
+    configuration: DataManagerSyncConfiguration(managerKey: "products")
 )
 ```
 
-**Note:** For async managers (`DocumentManagerAsync`, `CollectionManagerAsync`), use the remote services directly:
-- `FirebaseRemoteDocumentService`
-- `FirebaseRemoteCollectionService`
+**Note:** These are optional convenience wrappers. For async managers, use the services directly as shown in the examples above.
 
 </details>
 
