@@ -46,6 +46,16 @@ public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIde
         try await documentCollection.getDocument(id: id)
     }
 
+    public func streamDocument(id: String) -> AsyncThrowingStream<T?, Error> {
+        do {
+            return try documentCollection.streamDocument(id: id)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+    }
+
     public func saveDocument(_ model: T) async throws {
         try documentCollection.document(model.id).setData(from: model, merge: true)
     }
