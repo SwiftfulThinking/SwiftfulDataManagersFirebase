@@ -9,14 +9,13 @@ import Foundation
 import FirebaseFirestore
 import SwiftfulFirestore
 import SwiftfulDataManagers
-import IdentifiableByString
 
 public enum FirebaseServiceError: Error {
     case collectionPathNotAvailable
 }
 
 @MainActor
-public struct FirebaseRemoteDocumentService<T: DMProtocol & Codable & StringIdentifiable>: RemoteDocumentService {
+public struct FirebaseRemoteDocumentService<T: DataSyncModelProtocol>: RemoteDocumentService {
 
     private let collectionPath: () -> String?
 

@@ -16,10 +16,8 @@ let package = Package(
             targets: ["SwiftfulDataManagersFirebase"]),
     ],
     dependencies: [
-        // Here we add the dependency for the SwiftfulDataManagers package
-        .package(url: "https://github.com/SwiftfulThinking/SwiftfulDataManagers.git", "1.0.1"..<"2.0.0"),
-        .package(url: "https://github.com/SwiftfulThinking/SwiftfulFirestore.git", "11.0.0"..<"12.0.0"), // "11.0.0"..<"12.0.0"
-        .package(url: "https://github.com/SwiftfulThinking/IdentifiableByString.git", "1.0.0"..<"2.0.0"),
+        .package(url: "https://github.com/SwiftfulThinking/SwiftfulDataManagers.git", branch: "refactor"),
+        .package(url: "https://github.com/SwiftfulThinking/SwiftfulFirestore.git", "11.0.0"..<"12.0.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -29,7 +27,6 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftfulDataManagers", package: "SwiftfulDataManagers"),
                 .product(name: "SwiftfulFirestore", package: "SwiftfulFirestore"),
-                .product(name: "IdentifiableByString", package: "IdentifiableByString"),
             ]
         ),
         .testTarget(

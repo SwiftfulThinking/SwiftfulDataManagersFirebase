@@ -6,22 +6,26 @@
 //
 
 // This is the main module file for SwiftfulDataManagersFirebase.
-// Firebase implementations of RemoteDocumentService and RemoteCollectionService.
+// Firebase Firestore implementations of RemoteDocumentService and RemoteCollectionService.
 //
 // Usage:
 //
-// For Document Management:
+// For DocumentSyncEngine:
 // ```swift
-// let documentService = FirebaseRemoteDocumentService<User>(collectionPath: "users")
-// let manager = DocumentManagerSync(remote: documentService, ...)
+// let userSyncEngine = DocumentSyncEngine<UserModel>(
+//     remote: FirebaseRemoteDocumentService(collectionPath: { "users" }),
+//     managerKey: "user"
+// )
 // ```
 //
-// For Collection Management:
+// For CollectionSyncEngine:
 // ```swift
-// let collectionService = FirebaseRemoteCollectionService<Product>(collectionPath: "products")
-// let manager = CollectionManagerSync(remote: collectionService, ...)
+// let productsSyncEngine = CollectionSyncEngine<Product>(
+//     remote: FirebaseRemoteCollectionService(collectionPath: { "products" }),
+//     managerKey: "products"
+// )
 // ```
 //
 // Dynamic Collection Paths:
-// - Simple: "users" → users/{documentId}
-// - Nested: "users/user123/favorites" → users/user123/favorites/{documentId}
+// - Static: `{ "users" }` → users/{documentId}
+// - Dynamic: `{ "users/\(uid)/favorites" }` → users/{uid}/favorites/{documentId}
