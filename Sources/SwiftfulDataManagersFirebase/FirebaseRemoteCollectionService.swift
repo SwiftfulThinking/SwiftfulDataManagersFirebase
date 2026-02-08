@@ -9,10 +9,9 @@ import Foundation
 import FirebaseFirestore
 import SwiftfulFirestore
 import SwiftfulDataManagers
-import IdentifiableByString
 
 @MainActor
-public class FirebaseRemoteCollectionService<T: DMProtocol & Codable & StringIdentifiable>: RemoteCollectionService {
+public class FirebaseRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCollectionService {
 
     private let collectionPath: () -> String?
     private var listenerTask: Task<Void, Never>?
