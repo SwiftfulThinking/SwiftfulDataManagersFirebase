@@ -129,7 +129,7 @@ public class FirebaseRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCo
     public func streamCollection(query: QueryBuilder) -> AsyncThrowingStream<[T], Error> {
         do {
             let firestoreQuery = try buildFirestoreQuery(from: query)
-            return firestoreQuery.addSnapshotStream(as: [T].self)
+            return firestoreQuery.streamAllDocuments()
         } catch {
             return AsyncThrowingStream { continuation in
                 continuation.finish(throwing: error)
@@ -177,7 +177,7 @@ public class FirebaseRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCo
         listenerTask = Task {
             do {
                 let firestoreQuery = try buildFirestoreQuery(from: query)
-                for try await change in firestoreQuery.addSnapshotStreamForChanges() as AsyncThrowingStream<SwiftfulFirestore.DocumentChange<T>, Error> {
+                for try await change in firestoreQuery.streamAllDocumentChanges() as AsyncThrowingStream<SwiftfulFirestore.DocumentChange<T>, Error> {
                     switch change.type {
                     case .added, .modified:
                         updatesCont?.yield(change.document)
