@@ -116,14 +116,89 @@ public class FirebaseRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCo
         return (updates, deletions)
     }
 
+    public func streamCollection() -> AsyncThrowingStream<[T], Error> {
+        do {
+            return try documentCollection.streamAllDocuments()
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+    }
+
+    public func streamCollection(query: QueryBuilder) -> AsyncThrowingStream<[T], Error> {
+        do {
+            let firestoreQuery = try buildFirestoreQuery(from: query)
+            return firestoreQuery.addSnapshotStream(as: [T].self)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+    }
+
     public func deleteDocument(id: String) async throws {
         try await documentCollection.document(id).delete()
     }
 
     public func getDocuments(query: QueryBuilder) async throws -> [T] {
+        let firestoreQuery = try buildFirestoreQuery(from: query)
+        return try await firestoreQuery.getAllDocuments()
+    }
+
+    public func streamCollectionUpdates(query: QueryBuilder) -> (
+        updates: AsyncThrowingStream<T, Error>,
+        deletions: AsyncThrowingStream<String, Error>
+    ) {
+        var updatesCont: AsyncThrowingStream<T, Error>.Continuation?
+        var deletionsCont: AsyncThrowingStream<String, Error>.Continuation?
+
+        let updates = AsyncThrowingStream<T, Error> { continuation in
+            updatesCont = continuation
+
+            continuation.onTermination = { @Sendable _ in
+                Task {
+                    await self.listenerTask?.cancel()
+                }
+            }
+        }
+
+        let deletions = AsyncThrowingStream<String, Error> { continuation in
+            deletionsCont = continuation
+
+            continuation.onTermination = { @Sendable _ in
+                Task {
+                    await self.listenerTask?.cancel()
+                }
+            }
+        }
+
+        // Start the shared Firestore listener on the filtered query
+        listenerTask = Task {
+            do {
+                let firestoreQuery = try buildFirestoreQuery(from: query)
+                for try await change in firestoreQuery.addSnapshotStreamForChanges() as AsyncThrowingStream<SwiftfulFirestore.DocumentChange<T>, Error> {
+                    switch change.type {
+                    case .added, .modified:
+                        updatesCont?.yield(change.document)
+                    case .removed:
+                        deletionsCont?.yield(change.document.id)
+                    }
+                }
+            } catch {
+                updatesCont?.finish(throwing: error)
+                deletionsCont?.finish(throwing: error)
+            }
+        }
+
+        return (updates, deletions)
+    }
+
+    // MARK: - Private
+
+    private func buildFirestoreQuery(from query: QueryBuilder) throws -> Query {
         var firestoreQuery: Query = try documentCollection
 
-        // Apply all filters from QueryBuilder
         for filter in query.getFilters() {
             switch filter.operator {
             case .isEqualTo:
@@ -155,6 +230,6 @@ public class FirebaseRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCo
             }
         }
 
-        return try await firestoreQuery.getAllDocuments()
+        return firestoreQuery
     }
 }
