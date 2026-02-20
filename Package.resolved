@@ -150,8 +150,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftfulThinking/SwiftfulFirestore.git",
       "state" : {
-        "revision" : "288c869297fd3615ce8791f2740760d36b3b8db1",
-        "version" : "11.0.4"
+        "revision" : "92e1cc8a44ce3ca8abf262f822c076cdf5b22f8f",
+        "version" : "11.0.6"
       }
     }
   ],

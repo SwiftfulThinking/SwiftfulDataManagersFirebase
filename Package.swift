@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/SwiftfulThinking/SwiftfulDataManagers.git", "2.0.0"..<"3.0.0"),
-        .package(url: "https://github.com/SwiftfulThinking/SwiftfulFirestore.git", "11.0.0"..<"12.0.0"),
+        .package(url: "https://github.com/SwiftfulThinking/SwiftfulFirestore.git", "11.0.6"..<"12.0.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
