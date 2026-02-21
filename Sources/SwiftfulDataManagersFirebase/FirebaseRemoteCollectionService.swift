@@ -199,37 +199,61 @@ public class FirebaseRemoteCollectionService<T: DataSyncModelProtocol>: RemoteCo
     private func buildFirestoreQuery(from query: QueryBuilder) throws -> Query {
         var firestoreQuery: Query = try documentCollection
 
-        for filter in query.getFilters() {
-            switch filter.operator {
-            case .isEqualTo:
-                firestoreQuery = firestoreQuery.whereField(filter.field, isEqualTo: filter.value)
-            case .isNotEqualTo:
-                firestoreQuery = firestoreQuery.whereField(filter.field, isNotEqualTo: filter.value)
-            case .isGreaterThan:
-                firestoreQuery = firestoreQuery.whereField(filter.field, isGreaterThan: filter.value)
-            case .isLessThan:
-                firestoreQuery = firestoreQuery.whereField(filter.field, isLessThan: filter.value)
-            case .isGreaterThanOrEqualTo:
-                firestoreQuery = firestoreQuery.whereField(filter.field, isGreaterThanOrEqualTo: filter.value)
-            case .isLessThanOrEqualTo:
-                firestoreQuery = firestoreQuery.whereField(filter.field, isLessThanOrEqualTo: filter.value)
-            case .arrayContains:
-                firestoreQuery = firestoreQuery.whereField(filter.field, arrayContains: filter.value)
-            case .in:
-                if let array = filter.value as? [Any] {
-                    firestoreQuery = firestoreQuery.whereField(filter.field, in: array)
-                }
-            case .notIn:
-                if let array = filter.value as? [Any] {
-                    firestoreQuery = firestoreQuery.whereField(filter.field, notIn: array)
-                }
-            case .arrayContainsAny:
-                if let array = filter.value as? [Any] {
-                    firestoreQuery = firestoreQuery.whereField(filter.field, arrayContainsAny: array)
-                }
+        for operation in query.getOperations() {
+            switch operation {
+            case .filter(let filter):
+                firestoreQuery = applyFilter(filter, to: firestoreQuery)
+            case .order(let order):
+                firestoreQuery = firestoreQuery.order(by: order.field, descending: order.descending)
+            case .limit(let value):
+                firestoreQuery = firestoreQuery.limit(to: value)
+            case .limitToLast(let value):
+                firestoreQuery = firestoreQuery.limit(toLast: value)
+            case .startAt(let cursor):
+                firestoreQuery = firestoreQuery.start(at: cursor.values)
+            case .startAfter(let cursor):
+                firestoreQuery = firestoreQuery.start(after: cursor.values)
+            case .endAt(let cursor):
+                firestoreQuery = firestoreQuery.end(at: cursor.values)
+            case .endBefore(let cursor):
+                firestoreQuery = firestoreQuery.end(before: cursor.values)
             }
         }
 
         return firestoreQuery
+    }
+
+    private func applyFilter(_ filter: QueryFilter, to query: Query) -> Query {
+        switch filter.operator {
+        case .isEqualTo:
+            return query.whereField(filter.field, isEqualTo: filter.value)
+        case .isNotEqualTo:
+            return query.whereField(filter.field, isNotEqualTo: filter.value)
+        case .isGreaterThan:
+            return query.whereField(filter.field, isGreaterThan: filter.value)
+        case .isLessThan:
+            return query.whereField(filter.field, isLessThan: filter.value)
+        case .isGreaterThanOrEqualTo:
+            return query.whereField(filter.field, isGreaterThanOrEqualTo: filter.value)
+        case .isLessThanOrEqualTo:
+            return query.whereField(filter.field, isLessThanOrEqualTo: filter.value)
+        case .arrayContains:
+            return query.whereField(filter.field, arrayContains: filter.value)
+        case .in:
+            if let array = filter.value as? [Any] {
+                return query.whereField(filter.field, in: array)
+            }
+            return query
+        case .notIn:
+            if let array = filter.value as? [Any] {
+                return query.whereField(filter.field, notIn: array)
+            }
+            return query
+        case .arrayContainsAny:
+            if let array = filter.value as? [Any] {
+                return query.whereField(filter.field, arrayContainsAny: array)
+            }
+            return query
+        }
     }
 }
